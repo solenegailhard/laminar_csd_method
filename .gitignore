@@ -1,3 +1,28 @@
+# Outputs 
+**/_outputs/
+**/output/
+**/*.npy
+**/*.pickle
+**/*.fif
+
+# exploratory 
+**/_exploratory/
+
+# comments & logs
+**/comments.txt
+**/logs/
+
+# Figures 
+**/figures/
+**/*.png
+**/*.gif
+
+# settings
+config/env.cluster.json
+config/env.server.json
+config/env.local.json
+config/datasets/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

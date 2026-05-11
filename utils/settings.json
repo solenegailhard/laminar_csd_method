@@ -1,0 +1,34 @@
+{   
+  "dataset": {
+    "test_data": {
+        "path": {
+          "local":"/home/gailhard/Documents/Laminar_meg/Backup server/test_data_v0.1.4/test_data/",
+          "server": "/home/sgailhard/Documents/Laminar_meg/test_data_v0.1.4/test_data/",
+          "cluster": "/sps/isc/sgailhard/test_data"
+          },
+        "subjects_dir": {
+          "local": "/home/gailhard/Documents/Laminar_meg/cluster_doc/cued_action_meg/derivatives/processed/fs",
+          "server": "/home/sgailhard/Documents/Laminar_meg/cued_action_meg/derivatives/processed/fs",
+          "cluster": "/sps/isc/sgailhard/test_data/fs"
+        },  
+        "downsample_dataset": 600,
+        "hi_pass_filter": 120,
+        "vertices": []
+    },
+    "cued_action_meg": {
+        "path": {
+          "local":"/home/gailhard/Documents/Laminar_meg/cluster_doc/cued_action_meg",
+          "server": "/home/sgailhard/Documents/Laminar_meg/cluster_doc/cued_action_meg",
+          "cluster": "/sps/isc/sgailhard/cued_action_meg"
+        },
+        "subjects_dir": {
+          "local": "/home/gailhard/Documents/Laminar_meg/cluster_doc/cued_action_meg/derivatives/processed/fs",
+          "server": "/home/sgailhard/Documents/Laminar_meg/cluster_doc/cued_action_meg/derivatives/processed/fs",
+          "cluster": "/sps/isc/sgailhard/cued_action_meg/derivatives/processed/fs"
+        },  
+        "downsample_dataset": 600,
+        "hi_pass_filter": 120,
+        "vertices": []
+    }
+  }
+}
