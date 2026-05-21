@@ -2,7 +2,7 @@
 
 # ----- #
 # Job name
-#SBATCH --job-name=err_sim
+#SBATCH --job-name=patchsize_sim
 
 
 # ----- #
@@ -14,7 +14,7 @@
 
 # ----- #
 # Computational resources.
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=8 
 #SBATCH --mem=32G
 
 # Instead of specifying a nodelist which will ask for all the nodes to be
@@ -35,6 +35,20 @@
 # --output=fichier_de_sortie${SLURM_ARRAY_TASK_ID}.txt
 # --error=sortie_erreur.err
 
+# clean job cache
+export FONTCONFIG_PATH=/etc/fonts
+export FONTCONFIG_FILE=/etc/fonts/fonts.conf
+export XDG_CACHE_HOME=/tmp/$USER/${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}/fontcache
+mkdir -p "$XDG_CACHE_HOME"
+fc-cache -r >/dev/null 2>&1
+
+export MCR_CACHE_ROOT=/tmp/$USER/mcr_cache_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}
+mkdir -p "$MCR_CACHE_ROOT"
+
+cleanup() {
+    rm -rf "$MCR_CACHE_ROOT" "$XDG_CACHE_HOME"
+}
+trap cleanup EXIT
 
 # ----- #
 # Python activation.
@@ -48,4 +62,4 @@ conda activate lameg
 # ----- #
 # Run script.
 # Standard output and standard error are NOT redirected to the same file.
-python -u /pbs/home/s/sgailhard/csd_simulations/sim_csd_coreg_error.py > /sps/isc/sgailhard/csd_simulations/output/output_coreg_error_$SLURM_ARRAY_TASK_ID.txt 2> /sps/isc/sgailhard/csd_simulations/output/error_coreg_error_$SLURM_ARRAY_TASK_ID.txt ${SLURM_ARRAY_TASK_ID}
+python -u /pbs/home/s/sgailhard/csd_simulations/sim_csd_1_source_patch_size.py > /sps/isc/sgailhard/csd_simulations/output/output_1_source_patch_size_$SLURM_ARRAY_TASK_ID.txt 2> /sps/isc/sgailhard/csd_simulations/output/error_1_source_patch_size_$SLURM_ARRAY_TASK_ID.txt ${SLURM_ARRAY_TASK_ID}

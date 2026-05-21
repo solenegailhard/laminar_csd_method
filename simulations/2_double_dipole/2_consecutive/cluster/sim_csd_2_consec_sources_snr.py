@@ -1,5 +1,5 @@
 '''
-Systematic simulations of 2 sources with with varying temporal jittter: compare ebb_layer versus ebb_layer_sliding window
+Systematic simulations of 2 sources with with varying temporal distance: compare ebb_layer versus ebb_layer_sliding window
 
 Retrieve the base data MEG file and subjects multilayer surfaces mesh, coregister, invert to compute forward model
 Then simulate two simultaneous 25ms gaussians with decreasing distance in between the two sources.
@@ -21,6 +21,7 @@ import sys
 import json
 import os
 import os.path as op
+import traceback
 import numpy as np
 import pickle
 
@@ -35,7 +36,6 @@ from lameg.simulate import run_current_density_simulation
 from lameg.util import load_meg_sensor_data, get_fiducial_coords, spm_context
 from lameg.surf import LayerSurfaceSet
 
-
 def run(
     json_file,
     out_folder,
@@ -47,12 +47,13 @@ def run(
     sim_vertex,
     err_level,
     snr,
+    tmp_dist,
     dipole_moment,
     win_size,
     patch_size,
     sim_patch_size,
-    n_temp_modes,
-    hann=False
+    n_temp_modes_ebb,
+    hann_ebb=False
     ):
 
     with open(json_file) as pipeline_file:
@@ -135,7 +136,7 @@ def run(
 
     # Copy data files to tmp directory
     data_file = os.path.join(ses_path,
-        f'spm/pspm_converted_{subject_id}-{session_id}-motor-epo.mat'
+        f'spm/ppspm_converted_{subject_id}-{session_id}-motor-epo.mat' #take the smaller cut version - too long for slidwd otherwise
     )
     data_path, data_file_name = os.path.split(data_file)
     data_base = os.path.splitext(data_file_name)[0]
@@ -155,60 +156,49 @@ def run(
         # save thickness for csd
         thickness = surf_set.get_cortical_thickness()[sim_vertex]
 
-        # Compute rank of the data for faster inversion
-        # epochs = read_epochs(
-        #     os.path.join(ses_path, f'{subject_id}-{session_id}-motor-epo.fif'),
-        #     verbose=False, preload=True
-        # )
-        # rank = mne.compute_rank(epochs, rank='info')
-        # n_spatial_modes = rank['mag']
-        n_spatial_modes = 68 #fix it as we know for this subject it is 68
+        n_spatial_modes = 'auto'
 
         # Gaussian signal
         signal_width = 50  # 50ms
         _, time, _ = load_meg_sensor_data(base_fname)
         zero_time  = time[int((len(time) - 1) / 2 + 1)]
-        sim_signal = np.exp(-((time - zero_time) ** 2) / (2 * signal_width ** 2)).reshape(1, -1)
-        woi = [zero_time - int(.5 * win_size), zero_time + int(.5 * win_size)]
+        sim_signal1 = np.exp(-((time - zero_time - tmp_dist/2) ** 2) / (2 * signal_width ** 2)).reshape(1, -1)
+        sim_signal2 = np.exp(-((time - zero_time + tmp_dist/2) ** 2) / (2 * signal_width ** 2)).reshape(1, -1)
 
         # get the layer vertices for each reconstructed layer
         all_layers_vertices = [surf_set.get_multilayer_vertex(i, sim_vertex) for i in range(n_layers)]
 
         # get the layer vertices where we simulate the sources 
-        # either single layer vertex per sim or pair of vertices depending on sim_layers
-        if isinstance(sim_layers[0], int):
-            sim_vertices = [all_layers_vertices[l] for l in sim_layers]
-        else: 
-            sim_vertices = [
-                [all_layers_vertices[l1], all_layers_vertices[l2]]
-                for l1, l2 in sim_layers
-            ]
-            sim_signal = [sim_signal, sim_signal] #same signal for both sources in the pair
-            dipole_moment = [dipole_moment, dipole_moment] #same dipole moment for both sources in the pair
+        sim_vertices = [
+            [all_layers_vertices[l1], all_layers_vertices[l2]]
+            for l1, l2 in sim_layers
+        ]
+        sim_signal = np.vstack([sim_signal1, sim_signal2]) #same signal for both sources in the pair
+        dipole_moment = [dipole_moment, dipole_moment] #same dipole moment for both sources in the pair
 
         sim_vx_res = {
             "sim_vertex": sim_vertex,
+            "n_layers": n_layers,
             "sim_layers": sim_layers,
             "patch_size": patch_size,
             "err_level": err_level,
             "sim_patch_size": sim_patch_size,
-            "n_temp_modes": n_temp_modes,
+            "n_temp_modes_ebb": n_temp_modes_ebb,
             "n_spatial_modes": n_spatial_modes,
-            "hann_windowing": hann,
+            "hann_windowing_ebb": hann_ebb,
             "snr": snr,
             "dipole_moment": dipole_moment,
             "sim_signal": sim_signal,
             "win_size": win_size,
-            "woi": woi,
             "sfreq": parameters["downsample_dataset"],
             "thickness": thickness,
             "time": time,
             "ts_ebb_layer": np.zeros((len(sim_vertices), n_layers, len(time))),
             "ts_slidwd_ebb_layer": np.zeros((len(sim_vertices), n_layers, len(time))),
-            "fs": np.zeros((len(sim_vertices), n_layers)),
+            "fs_slidwd": np.zeros((len(sim_vertices), n_layers, len(time))),
         }
 
-        with spm_context() as spm:
+        with spm_context(n_jobs=24) as spm:
 
             # Coregister once on base data
             coregister(
@@ -223,7 +213,7 @@ def run(
                 base_fname, 
                 surf_set, 
                 patch_size=patch_size,
-                n_temp_modes=n_temp_modes, 
+                n_temp_modes=n_temp_modes_ebb, 
                 spm_instance=spm
             )
 
@@ -262,7 +252,7 @@ def run(
             for sim_idx, layers in enumerate(sim_layers):
                 prefix = f'{output_sim_fname}_layer{str(layers).zfill(2)}_'
                 sim_l_vx = sim_vertices[sim_idx] #either single or pair of vertices depending on the sim_layer_pairs
-
+                print(f"Simulating {prefix}...")
                 sim_l_fname = run_current_density_simulation(
                     base_fname, 
                     prefix, 
@@ -286,14 +276,15 @@ def run(
                     sim_l_fname, 
                     surf_set,
                     patch_size=patch_size, 
-                    n_temp_modes=n_temp_modes,
+                    n_temp_modes=n_temp_modes_ebb,
                     n_spatial_modes=n_spatial_modes, 
                     foi=None, 
-                    hann_windowing=hann, 
+                    hann_windowing=hann_ebb, 
                     viz=False,
                     return_mu_matrix=True, 
                     spm_instance=spm
                 )
+                print('inversion with ebb_layer done')
 
                 # retreive ebb_layer time series, only for specified vertex
                 ts_ebb_layer, _, _ = load_source_time_series(
@@ -305,24 +296,25 @@ def run(
                 # get the ts within full time window (for comparison with free energy)
                 sim_vx_res["ts_ebb_layer"][sim_idx, :, :] = ts_ebb_layer
 
-                # inversion with sliding window ebb_layer (METHOD 1-bis)
-                [_, _, MU] = invert_sliding_window_ebb_layer(
+                # inversion with sliding window ebb_layer (METHOD 1-bis) # if epoch too big import from helper
+                [_, _] = invert_sliding_window_ebb_layer(
                     sim_l_fname, 
                     surf_set,
                     patch_size=patch_size, 
-                    n_temp_modes=n_temp_modes,
+                    n_temp_modes=n_temp_modes_ebb,
                     n_spatial_modes=n_spatial_modes, 
+                    win_size=win_size,
+                    win_overlap=True,
                     foi=None, 
                     hann_windowing=True, #hardcoded: optimal for sliding window 
                     viz=False,
-                    return_mu_matrix=True, 
                     spm_instance=spm
                 )
+                
 
                 # retreive ebb_layer time series, only for specified vertex
                 ts_slidwd_ebb_layer, _, _ = load_source_time_series(
                     sim_l_fname, 
-                    mu_matrix=MU, 
                     vertices=all_layers_vertices
                 )
 
@@ -330,24 +322,23 @@ def run(
                 sim_vx_res["ts_slidwd_ebb_layer"][sim_idx, :, :] = ts_slidwd_ebb_layer
 
                 # model comparison (METHOD 2 - free energy model comparison, msp inversion at specific vertex)
-                [fs, _] = sliding_window_model_comparison(
+                [fs_slidwd, _] = sliding_window_model_comparison(
+                    [sim_vertex],
                     coreg_fid_coords, 
                     sim_l_fname, 
                     surf_set,
-                    method='MSP', 
                     viz=False, 
                     spm_instance=spm,
                     invert_kwargs={
-                        'priors': [sim_vertex],
-                        'woi': woi, 
                         'patch_size': patch_size,
                         'n_temp_modes': 4, #hardcoded: optimal for fe comparison
-                        'hann_windowing': True, #hardcoded: optimal for fe comparison
+                        'win_size': win_size, 
+                        'win_overlap': True, #hardcoded: optimal for fe comparison
                     }
                 )
 
                 # saves the free energy
-                sim_vx_res["fs"][sim_idx, :] = fs
+                sim_vx_res["fs_slidwd"][sim_idx, :, :] = fs_slidwd
 
                 # Cleanup layer sim files
                 for ext in ['mat', 'dat']:
@@ -365,8 +356,8 @@ def run(
 
         shutil.rmtree(tmp_dir)
     
-    except:
-        print(f'Error...')
+    except Exception:
+        print(traceback.format_exc())
         shutil.rmtree(tmp_dir)
 
 # ------------------------------------------------------------------------------------
@@ -397,33 +388,36 @@ if __name__ == '__main__':
     n_layers = 11
     sim_layers = [(1, 9), (3, 7)]
     #sim_layers = [l for l in range(n_layers)]
-    win_size = 25
     dipole_moment = 5
     snr_level = -5
     err_level = 0
     patch_size = 5
     sim_patch_size = 5
-    n_temp_modes = 4
-    hann = False
-    #vertices = parameters["vertices"]
-    vertices = 6333 
+    n_temp_modes_ebb = 4
+    hann_ebb = False
+    vertices = parameters["vertices"]
 
     # Modulated params
-    temporal_jitter = [0, 10, 25, 50, 100] # in ms, added to the second source in the pair
+    temp_dist = [10, 25, 50] # in ms, added to the second source in the pair
+    win_size = [10, 25, 50]
 
     # Build all (vertex, snr) combinations
     all_verts = []
-    all_temporal_jitter = []
+    all_temp_dist = []
+    all_win_sizes = []
     for vert in vertices:
-        for tmp_jit_i in temporal_jitter:
-            all_verts.append(vert)
-            all_temporal_jitter.append(tmp_jit_i)
+        for tmp_dist_i in temp_dist:
+            for win_s in win_size:
+                all_verts.append(vert)
+                all_temp_dist.append(tmp_dist_i)
+                all_win_sizes.append(tmp_dist_i)
     
-    print(f'Total number of unique simulations: {len(all_temporal_jitter)}')
+    print(f'Total number of unique simulations: {len(all_temp_dist)}')
 
     vertex_sim_idx = all_verts[sim_idx]
-    tmp_jit_sim_idx = all_temporal_jitter[sim_idx]
-    output_sim_fname = f"vx{vertex_sim_idx}_2_consec_sources_tmp_jit{tmp_jit_sim_idx}"
+    tmp_dist_sim_idx = all_temp_dist[sim_idx]
+    win_size_sim_idx = all_win_sizes[sim_idx]
+    output_sim_fname = f"vx{vertex_sim_idx}_2_consec_sources_tmp_dist{tmp_dist_sim_idx}win_size{win_size_sim_idx}"
 
     run(json_file,
         out_folder,
@@ -434,10 +428,11 @@ if __name__ == '__main__':
         sim_layers,
         vertex_sim_idx,
         err_level,
-        tmp_jit_sim_idx,
+        snr_level,
+        tmp_dist_sim_idx,
         dipole_moment,
-        win_size,
+        win_size_sim_idx,
         patch_size,
         sim_patch_size,
-        n_temp_modes,
-        hann)
+        n_temp_modes_ebb,
+        hann_ebb)

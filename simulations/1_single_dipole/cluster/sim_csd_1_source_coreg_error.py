@@ -1,16 +1,5 @@
 '''
-Systematic simulations of varying snr
-based on https://github.com/danclab/multilaminar_sim/blob/main/pipeline_02_snr_simulations.py
-
-Retrieve the base data MEG file and subjects multilayer surfaces mesh, coregister, invert to compute forward model
-Then simulate a 25ms gaussian in each synthetic layer (of specified vertex) with varying SNR, 
-
-- coergister to multilayer surface and invert using EBB to extract source time series in each layer
-- coregister to each layer surface, computes model evidence (free energy) per layer model
-
-Here we aim compare two methods: CSD on EBB reconstructed layer source time series & model comparison approach
-
-Ran in 200 vertices sampled from quintiles of cortical thickness, leadfield differences, orientation, distance to scalp
+Systematic simulations for coregistration error
 '''
 
 import glob
@@ -50,8 +39,8 @@ def run(
     win_size,
     patch_size,
     sim_patch_size,
-    n_temp_modes,
-    hann=False
+    n_temp_modes_ebb,
+    hann_ebb=False
     ):
 
     with open(json_file) as pipeline_file:
@@ -154,14 +143,7 @@ def run(
         # save thickness for csd
         thickness = surf_set.get_cortical_thickness()[sim_vertex]
 
-        # Compute rank of the data for faster inversion
-        # epochs = read_epochs(
-        #     os.path.join(ses_path, f'{subject_id}-{session_id}-motor-epo.fif'),
-        #     verbose=False, preload=True
-        # )
-        # rank = mne.compute_rank(epochs, rank='info')
-        # n_spatial_modes = rank['mag']
-        n_spatial_modes = 68 #fix it as we know for this subject it is 68
+        n_spatial_modes = 'auto'
 
         # Gaussian signal
         signal_width = 50  # 50ms
@@ -182,18 +164,19 @@ def run(
                 [all_layers_vertices[l1], all_layers_vertices[l2]]
                 for l1, l2 in sim_layers
             ]
-            sim_signal = [sim_signal, sim_signal] #same signal for both sources in the pair
+            sim_signal = np.vstack([sim_signal, sim_signal]) #same signal for both sources in the pair
             dipole_moment = [dipole_moment, dipole_moment] #same dipole moment for both sources in the pair
 
         sim_vx_res = {
             "sim_vertex": sim_vertex,
+            "n_layers": n_layers,
             "sim_layers": sim_layers,
             "patch_size": patch_size,
             "err_level": err_level,
             "sim_patch_size": sim_patch_size,
-            "n_temp_modes": n_temp_modes,
+            "n_temp_modes_ebb": n_temp_modes_ebb,
             "n_spatial_modes": n_spatial_modes,
-            "hann_windowing": hann,
+            "hann_windowing_ebb": hann_ebb,
             "snr": snr,
             "dipole_moment": dipole_moment,
             "sim_signal": sim_signal,
@@ -222,7 +205,7 @@ def run(
                 base_fname, 
                 surf_set, 
                 patch_size=patch_size,
-                n_temp_modes=n_temp_modes, 
+                n_temp_modes=n_temp_modes_ebb, 
                 spm_instance=spm
             )
 
@@ -261,7 +244,7 @@ def run(
             for sim_idx, layers in enumerate(sim_layers):
                 prefix = f'{output_sim_fname}_layer{str(layers).zfill(2)}_'
                 sim_l_vx = sim_vertices[sim_idx] #either single or pair of vertices depending on the sim_layer_pairs
-
+                print(f"Simulating {prefix}...")
                 sim_l_fname = run_current_density_simulation(
                     base_fname, 
                     prefix, 
@@ -285,10 +268,10 @@ def run(
                     sim_l_fname, 
                     surf_set,
                     patch_size=patch_size, 
-                    n_temp_modes=n_temp_modes,
+                    n_temp_modes=n_temp_modes_ebb,
                     n_spatial_modes=n_spatial_modes, 
                     foi=None, 
-                    hann_windowing=hann, 
+                    hann_windowing=hann_ebb, 
                     viz=False,
                     return_mu_matrix=True, 
                     spm_instance=spm
@@ -309,10 +292,10 @@ def run(
                     sim_l_fname, 
                     surf_set,
                     patch_size=patch_size, 
-                    n_temp_modes=n_temp_modes,
+                    n_temp_modes=n_temp_modes_ebb,
                     n_spatial_modes=n_spatial_modes, 
                     foi=None, 
-                    hann_windowing=hann, 
+                    hann_windowing=hann_ebb, 
                     viz=False,
                     return_mu_matrix=True, 
                     spm_instance=spm
@@ -364,8 +347,8 @@ def run(
 
         shutil.rmtree(tmp_dir)
     
-    except:
-        print(f'Error...')
+    except Exception:
+        print(traceback.format_exc())
         shutil.rmtree(tmp_dir)
 
 # ------------------------------------------------------------------------------------
@@ -388,39 +371,38 @@ if __name__ == '__main__':
     with open(json_file) as pipeline_file:
         parameters = json.load(pipeline_file)
 
-    out_folder = 'sim_snr'
+    out_folder = 'sim_1_source_coreg_error'
 
     # Fixed params
     subject_id = 'sub-001'
     session_id = 'ses-01'
     n_layers = 11
-    #sim_layers = [(0, 10), (1, 9), (2, 8), (3, 7), (4, 6)]
     sim_layers = [l for l in range(n_layers)]
     win_size = 25
     dipole_moment = 5
-    err_level = 0
+    snr_level = -5
     patch_size = 5
     sim_patch_size = 5
-    n_temp_modes = 4
-    hann = False
+    n_temp_modes_ebb = 4
+    hann_ebb = False
     vertices = parameters["vertices"]
 
     # Modulated params
-    snr_level = [-50, -35, -20, -10, -5, 0, 5]
+    err_level = [0.5, 1, 2, 3, 4, 5] #mm as 0 already computed in snr_sim
 
-    # Build all (vertex, snr) combinations
+    # Build all (vertex, err) combinations
     all_verts = []
-    all_snr_levels = []
+    all_err_level = []
     for vert in vertices:
-        for snr in snr_level:
+        for err in err_level:
             all_verts.append(vert)
-            all_snr_levels.append(snr)
+            all_err_level.append(err)
     
-    print(f'Total number of unique simulations: {len(all_snr_levels)}')
+    print(f'Total number of unique simulations: {len(all_err_level)}')
 
     vertex_sim_idx = all_verts[sim_idx]
-    snr_sim_idx = all_snr_levels[sim_idx]
-    output_sim_fname = f"vx{vertex_sim_idx}_snr{snr_sim_idx}"
+    err_sim_idx = all_err_level[sim_idx]
+    output_sim_fname = f"vx{vertex_sim_idx}_1_source_coreg_error{err_sim_idx}"
 
     run(json_file,
         out_folder,
@@ -430,11 +412,11 @@ if __name__ == '__main__':
         n_layers,
         sim_layers,
         vertex_sim_idx,
-        err_level,
-        snr_sim_idx,
+        err_sim_idx,
+        snr_level,
         dipole_moment,
         win_size,
         patch_size,
         sim_patch_size,
-        n_temp_modes,
-        hann)
+        n_temp_modes_ebb,
+        hann_ebb)

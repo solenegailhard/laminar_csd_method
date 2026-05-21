@@ -25,7 +25,7 @@ def indices_to_slurm_array_spec(indices):
     return ",".join(ranges)
 
 
-def check_completion(out_path, vertices, modulated_param_fname, modulated_param):
+def check_completion(out_path, vertices, type_sim, modulated_param_fname, modulated_param):
     """
     Check which simulations are complete and which are missing.
     
@@ -48,7 +48,7 @@ def check_completion(out_path, vertices, modulated_param_fname, modulated_param)
             
             output_file = os.path.join(
                 out_path,
-                f"vx{vertex}_{modulated_param_fname}{param}.pickle"
+                f"vx{vertex}_{type_sim}_{modulated_param_fname}{param}.pickle"
             )
             
             if not os.path.exists(output_file):
@@ -100,6 +100,11 @@ if __name__ == '__main__':
     session_id = 'ses-01'
     vertices = parameters["vertices"]
 
+    # type of sim
+    type_sim = '1_source'
+    #type_sim = '2_simult_sources'
+    #type_sim = '2_consec_sources'
+
     # Modulated params
     modulated_param_fname = 'snr'
     snr_level = [-50, -35, -20, -10, -5, 0, 5]
@@ -110,4 +115,4 @@ if __name__ == '__main__':
     # modulated_param_fname = 'patchsize'
     # patchsize_level = [2.5, 10]
 
-    check_completion(out_folder, vertices, modulated_param_fname, snr_level)
+    check_completion(out_folder, vertices, type_sim, modulated_param_fname, snr_level)
