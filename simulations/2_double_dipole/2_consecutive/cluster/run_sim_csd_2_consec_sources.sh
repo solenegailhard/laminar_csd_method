@@ -2,14 +2,15 @@
 
 # ----- #
 # Job name
-#SBATCH --job-name=patchsize_sim
+#SBATCH --job-name=2_consec_sources_sim
 
 
 # ----- #
 # Jobs to run; each element corresponds to a subject.
 # Only run n at a time with (%n) at the end of the command!
 # Counting the python way!
-#SBATCH --array=0 # --array=0%150
+#SBATCH --array=0 # --array=0-1399%100
+# SBATCH --array=@missing_tasks_map.txt%100 # --array=0-1399%100
 
 
 # ----- #
@@ -62,4 +63,4 @@ conda activate lameg
 # ----- #
 # Run script.
 # Standard output and standard error are NOT redirected to the same file.
-python -u /pbs/home/s/sgailhard/csd_simulations/sim_csd_1_source_patch_size.py > /sps/isc/sgailhard/csd_simulations/output/output_1_source_patch_size_$SLURM_ARRAY_TASK_ID.txt 2> /sps/isc/sgailhard/csd_simulations/output/error_1_source_patch_size_$SLURM_ARRAY_TASK_ID.txt ${SLURM_ARRAY_TASK_ID}
+python -u /pbs/home/s/sgailhard/csd_simulations/sim_csd_2_consec_sources.py > /sps/isc/sgailhard/csd_simulations/output/output_2_consec_sources_$SLURM_ARRAY_TASK_ID.txt 2> /sps/isc/sgailhard/csd_simulations/output/error_2_consec_sources_$SLURM_ARRAY_TASK_ID.txt ${SLURM_ARRAY_TASK_ID}

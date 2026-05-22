@@ -9,8 +9,8 @@
 # Jobs to run; each element corresponds to a subject.
 # Only run n at a time with (%n) at the end of the command!
 # Counting the python way!
-# SBATCH --array=0 # --array=0-1399%100
-#SBATCH --array=@missing_tasks_map.txt%100 # --array=0-1399%100
+#SBATCH --array=0 # --array=0-1399%100
+# SBATCH --array=@missing_tasks_map.txt%100 # --array=0-1399%100
 
 
 # ----- #

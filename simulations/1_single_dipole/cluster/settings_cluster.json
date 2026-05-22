@@ -1,8 +1,8 @@
 {
   "lameg_version": "92e7fe7ad11455e191248a6b40882294b6c4d373",
-  "dataset_path": "/sps/isc/gailhard/laminar_csd/data/",
-  "os_SUBJECTS_DIR": "/sps/isc/gailhard/laminar_csd/data/derivatives/processed/fs/",
-  "output_path": "/sps/isc/gailhard/laminar_csd/output/",
+  "dataset_path": "/sps/isc/sgailhard/cued_action_meg/",
+  "os_SUBJECTS_DIR": "/sps/isc/sgailhard/cued_action_meg/derivatives/processed/fs/",
+  "output_path": "/sps/isc/sgailhard/csd_simulations/output",
   "downsample_dataset": 600,
   "hi_pass_filter": 120,
   "vertices": [

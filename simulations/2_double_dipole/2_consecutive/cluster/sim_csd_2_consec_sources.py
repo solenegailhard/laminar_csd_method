@@ -136,7 +136,7 @@ def run(
 
     # Copy data files to tmp directory
     data_file = os.path.join(ses_path,
-        f'spm/ppspm_converted_{subject_id}-{session_id}-motor-epo.mat' #take the smaller cut version - too long for slidwd otherwise
+        f'spm/ppspm_converted_{subject_id}-{session_id}-motor-epo.mat'
     )
     data_path, data_file_name = os.path.split(data_file)
     data_base = os.path.splitext(data_file_name)[0]
@@ -159,7 +159,7 @@ def run(
         n_spatial_modes = 'auto'
 
         # Gaussian signal
-        signal_width = 50  # 50ms
+        signal_width = 25  # 25ms
         _, time, _ = load_meg_sensor_data(base_fname)
         zero_time  = time[int((len(time) - 1) / 2 + 1)]
         sim_signal1 = np.exp(-((time - zero_time - tmp_dist/2) ** 2) / (2 * signal_width ** 2)).reshape(1, -1)
@@ -198,7 +198,7 @@ def run(
             "fs_slidwd": np.zeros((len(sim_vertices), n_layers, len(time))),
         }
 
-        with spm_context(n_jobs=24) as spm:
+        with spm_context() as spm:
 
             # Coregister once on base data
             coregister(
@@ -284,7 +284,6 @@ def run(
                     return_mu_matrix=True, 
                     spm_instance=spm
                 )
-                print('inversion with ebb_layer done')
 
                 # retreive ebb_layer time series, only for specified vertex
                 ts_ebb_layer, _, _ = load_source_time_series(
@@ -345,7 +344,7 @@ def run(
                     for f_prefix in [prefix, f'm{prefix}']:
                         fpath = os.path.join(
                             tmp_dir,
-                            f'{f_prefix}pspm_converted_{subject_id}-{session_id}-motor-epo.{ext}'
+                            f'{f_prefix}ppspm_converted_{subject_id}-{session_id}-motor-epo.{ext}'
                         )
                         if os.path.exists(fpath):
                             os.remove(fpath)
@@ -388,8 +387,8 @@ if __name__ == '__main__':
     n_layers = 11
     sim_layers = [(1, 9), (3, 7)]
     #sim_layers = [l for l in range(n_layers)]
-    dipole_moment = 5
-    snr_level = -5
+    dipole_moment = 10
+    snr_level = 0
     err_level = 0
     patch_size = 5
     sim_patch_size = 5

@@ -123,7 +123,7 @@ def run(
 
     # Copy data files to tmp directory
     data_file = os.path.join(ses_path,
-        f'spm/pspm_converted_{subject_id}-{session_id}-motor-epo.mat'
+        f'spm/ppspm_converted_{subject_id}-{session_id}-motor-epo.mat'
     )
     data_path, data_file_name = os.path.split(data_file)
     data_base = os.path.splitext(data_file_name)[0]
@@ -146,7 +146,7 @@ def run(
         n_spatial_modes = 'auto'
 
         # Gaussian signal
-        signal_width = 50  # 50ms
+        signal_width = 25  # 25ms
         _, time, _ = load_meg_sensor_data(base_fname)
         zero_time  = time[int((len(time) - 1) / 2 + 1)]
         sim_signal = np.exp(-((time - zero_time) ** 2) / (2 * signal_width ** 2)).reshape(1, -1)
@@ -336,7 +336,7 @@ def run(
                     for f_prefix in [prefix, f'm{prefix}']:
                         fpath = os.path.join(
                             tmp_dir,
-                            f'{f_prefix}pspm_converted_{subject_id}-{session_id}-motor-epo.{ext}'
+                            f'{f_prefix}ppspm_converted_{subject_id}-{session_id}-motor-epo.{ext}'
                         )
                         if os.path.exists(fpath):
                             os.remove(fpath)
@@ -350,7 +350,6 @@ def run(
     except Exception:
         print(traceback.format_exc())
         shutil.rmtree(tmp_dir)
-
 
 # ------------------------------------------------------------------------------------
 
@@ -372,7 +371,7 @@ if __name__ == '__main__':
     with open(json_file) as pipeline_file:
         parameters = json.load(pipeline_file)
 
-    out_folder = 'sim_1_source_patchsize'
+    out_folder = 'sim_1_source_snr_patchsize'
 
     # Fixed params
     subject_id = 'sub-001'
@@ -380,8 +379,7 @@ if __name__ == '__main__':
     n_layers = 11
     sim_layers = [l for l in range(n_layers)]
     win_size = 25
-    dipole_moment = 5
-    snr_level = -5
+    dipole_moment = 10
     err_level = 0
     sim_patch_size = 5
     n_temp_modes_ebb = 4
@@ -390,20 +388,25 @@ if __name__ == '__main__':
 
     # Modulated params
     patch_size = [2.5, 10] # 5mm simulation patch sizes not necessary as already computed in all other sim files
+    snr_level = [-50, -35, -20, -10, -5, 0, 5]
     
-    # Build all (vertex, patch_size) combinations
+    # Build all (vertex, patch_size, snr) combinations
     all_verts = []
     all_patch_size = []
+    all_snr_levels = []
     for vert in vertices:
         for p_size in patch_size:
-            all_verts.append(vert)
-            all_patch_size.append(p_size)
+            for snr in snr_level:
+                all_verts.append(vert)
+                all_patch_size.append(p_size)
+                all_snr_levels.append(snr)
     
     print(f'Total number of unique simulations: {len(all_patch_size)}')
 
     vertex_sim_idx = all_verts[sim_idx]
     patch_size_sim_idx = all_patch_size[sim_idx]
-    output_sim_fname = f"vx{vertex_sim_idx}_1_source_patchsize{patch_size_sim_idx}"
+    snr_sim_idx = all_snr_levels[sim_idx]
+    output_sim_fname = f"vx{vertex_sim_idx}_1_source_snr{snr_sim_idx}_patchsize{patch_size_sim_idx}"
 
     run(json_file,
         out_folder,
@@ -414,7 +417,7 @@ if __name__ == '__main__':
         sim_layers,
         vertex_sim_idx,
         err_level,
-        snr_level,
+        snr_sim_idx,
         dipole_moment,
         win_size,
         patch_size_sim_idx,
