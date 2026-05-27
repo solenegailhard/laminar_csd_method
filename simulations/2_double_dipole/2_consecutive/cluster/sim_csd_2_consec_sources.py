@@ -295,12 +295,18 @@ def run(
                 # get the ts within full time window (for comparison with free energy)
                 sim_vx_res["ts_ebb_layer"][sim_idx, :, :] = ts_ebb_layer
 
+                # ensures you get enough samples to optimize the ebb hyperparameters 
+                if win_size <= 15:
+                    n_temp_modes_ebb_slidwd = 1
+                else:
+                    n_temp_modes_ebb_slidwd = n_temp_modes_ebb
+
                 # inversion with sliding window ebb_layer (METHOD 1-bis) # if epoch too big import from helper
                 [_, _] = invert_sliding_window_ebb_layer(
                     sim_l_fname, 
                     surf_set,
                     patch_size=patch_size, 
-                    n_temp_modes=n_temp_modes_ebb,
+                    n_temp_modes=n_temp_modes_ebb_slidwd,
                     n_spatial_modes=n_spatial_modes, 
                     win_size=win_size,
                     win_overlap=True,
@@ -392,13 +398,13 @@ if __name__ == '__main__':
     err_level = 0
     patch_size = 5
     sim_patch_size = 5
-    n_temp_modes_ebb = 4
+    n_temp_modes_ebb = 4 
     hann_ebb = False
     vertices = parameters["vertices"]
 
     # Modulated params
-    temp_dist = [15, 25, 50] # in ms, added to the second source in the pair
-    win_size = [15, 25, 50]
+    temp_dist = [10, 25, 50] # in ms, added to the second source in the pair
+    win_size = [10, 25, 50]
 
     # Build all (vertex, snr) combinations
     all_verts = []
