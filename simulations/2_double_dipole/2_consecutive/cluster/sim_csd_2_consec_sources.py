@@ -397,8 +397,8 @@ if __name__ == '__main__':
     vertices = parameters["vertices"]
 
     # Modulated params
-    temp_dist = [10, 25, 50] # in ms, added to the second source in the pair
-    win_size = [10, 25, 50]
+    temp_dist = [15, 25, 50] # in ms, added to the second source in the pair
+    win_size = [15, 25, 50]
 
     # Build all (vertex, snr) combinations
     all_verts = []
