@@ -298,8 +298,10 @@ def run(
                 # ensures you get enough samples to optimize the ebb hyperparameters 
                 if win_size <= 15:
                     n_temp_modes_ebb_slidwd = 1
+                    n_temp_modes_fe_slidwd = 1
                 else:
                     n_temp_modes_ebb_slidwd = n_temp_modes_ebb
+                    n_temp_modes_fe_slidwd = 4 #harcoded optimal for fe comparison
 
                 # inversion with sliding window ebb_layer (METHOD 1-bis) # if epoch too big import from helper
                 [_, _] = invert_sliding_window_ebb_layer(
@@ -336,7 +338,7 @@ def run(
                     spm_instance=spm,
                     invert_kwargs={
                         'patch_size': patch_size,
-                        'n_temp_modes': 4, #hardcoded: optimal for fe comparison
+                        'n_temp_modes': n_temp_modes_fe_slidwd, #hardcoded: optimal for fe comparison
                         'win_size': win_size, 
                         'win_overlap': True, #hardcoded: optimal for fe comparison
                     }

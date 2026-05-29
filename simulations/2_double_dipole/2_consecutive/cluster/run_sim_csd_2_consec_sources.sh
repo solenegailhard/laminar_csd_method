@@ -16,7 +16,7 @@
 # ----- #
 # Computational resources.
 #SBATCH --cpus-per-task=8 
-#SBATCH --mem=32G
+#SBATCH --mem=90G
 
 # Instead of specifying a nodelist which will ask for all the nodes to be
 # available for each job, exclude the nodes that are not contained in the
