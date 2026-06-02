@@ -417,7 +417,7 @@ if __name__ == '__main__':
             for win_s in win_size:
                 all_verts.append(vert)
                 all_temp_dist.append(tmp_dist_i)
-                all_win_sizes.append(tmp_dist_i)
+                all_win_sizes.append(win_s)
     
     print(f'Total number of unique simulations: {len(all_temp_dist)}')
 
