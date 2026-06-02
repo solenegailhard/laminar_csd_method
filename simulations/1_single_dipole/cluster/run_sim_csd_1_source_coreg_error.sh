@@ -21,7 +21,7 @@
 # available for each job, exclude the nodes that are not contained in the
 # nodelist. Each job will only occupy one node this way.
 # SBATCH --nodelist=node[13-21]
-# SBATCH --exclude=node[2-12]
+#SBATCH --exclude=ccwslurm0368,ccwslurm0369,ccwslurm0370,ccwslurm0371,ccwslurm0372
 
 
 # ----- #
