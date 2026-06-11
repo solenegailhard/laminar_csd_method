@@ -63,14 +63,12 @@ def run(
     out_path = os.path.join(parameters['output_path'], out_folder)
     os.makedirs(out_path, exist_ok=True)  
 
-    output_file = os.path.join(out_path, f"{output_sim_fname}.pickle")
-
     # check the simulations already ran
     remaining_win_sizes = []
     for win_size in win_sizes:
         output_file = os.path.join(out_path, f"{output_sim_fname}_win_size{win_size}.pickle")
-        if os.path.exists(output_file_win_size):
-            print(f"Skipping existing simulation: {output_file_win_size}")
+        if os.path.exists(output_file):
+            print(f"Skipping existing simulation: {output_file}")
         else:
             remaining_win_sizes.append(win_size)
 
@@ -78,8 +76,6 @@ def run(
         return
 
     win_sizes = remaining_win_sizes
-
-    print(f'Running simulation: {output_file}')
 
     path = parameters["dataset_path"]
     der_path = op.join(path, "derivatives")
