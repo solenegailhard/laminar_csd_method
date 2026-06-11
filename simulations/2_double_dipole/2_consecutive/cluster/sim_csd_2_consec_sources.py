@@ -49,7 +49,8 @@ def run(
     snr,
     tmp_dist,
     dipole_moment,
-    win_size,
+    win_sizes,
+    signal_width,
     patch_size,
     sim_patch_size,
     n_temp_modes_ebb,
@@ -64,9 +65,19 @@ def run(
 
     output_file = os.path.join(out_path, f"{output_sim_fname}.pickle")
 
-    if os.path.exists(output_file):
-        print(f"Skipping existing simulation: {output_file}")
-        return 
+    # check the simulations already ran
+    remaining_win_sizes = []
+    for win_size in win_sizes:
+        output_file = os.path.join(out_path, f"{output_sim_fname}_win_size{win_size}.pickle")
+        if os.path.exists(output_file_win_size):
+            print(f"Skipping existing simulation: {output_file_win_size}")
+        else:
+            remaining_win_sizes.append(win_size)
+
+    if not remaining_win_sizes:
+        return
+
+    win_sizes = remaining_win_sizes
 
     print(f'Running simulation: {output_file}')
 
@@ -159,7 +170,7 @@ def run(
         n_spatial_modes = 'auto'
 
         # Gaussian signal
-        signal_width = 25  # 25ms
+        #signal_width = 25  # 25ms
         _, time, _ = load_meg_sensor_data(base_fname)
         zero_time  = time[int((len(time) - 1) / 2 + 1)]
         sim_signal1 = np.exp(-((time - zero_time - tmp_dist/2) ** 2) / (2 * signal_width ** 2)).reshape(1, -1)
@@ -188,8 +199,9 @@ def run(
             "hann_windowing_ebb": hann_ebb,
             "snr": snr,
             "dipole_moment": dipole_moment,
+            "signal_width": signal_width,
             "sim_signal": sim_signal,
-            "win_size": win_size,
+            "win_size": None, #will be filled after in the loop
             "sfreq": parameters["downsample_dataset"],
             "thickness": thickness,
             "time": time,
@@ -295,57 +307,70 @@ def run(
                 # get the ts within full time window (for comparison with free energy)
                 sim_vx_res["ts_ebb_layer"][sim_idx, :, :] = ts_ebb_layer
 
-                # ensures you get enough samples to optimize the ebb hyperparameters 
-                if win_size <= 15:
-                    n_temp_modes_ebb_slidwd = 1
-                    n_temp_modes_fe_slidwd = 1
-                else:
-                    n_temp_modes_ebb_slidwd = n_temp_modes_ebb
-                    n_temp_modes_fe_slidwd = 4 #harcoded optimal for fe comparison
+                for win_size in win_sizes:
+                    
+                    # empty the sliding fs and time window arrays
+                    sim_vx_res["ts_slidwd_ebb_layer"] = np.zeros((len(sim_vertices), n_layers, len(time)))
+                    sim_vx_res["fs_slidwd"] = np.zeros((len(sim_vertices), n_layers, len(time)))
+                    # set the win size of reconstruction
+                    sim_vx_res["win_size"] = win_size
 
-                # inversion with sliding window ebb_layer (METHOD 1-bis) # if epoch too big import from helper
-                [_, _] = invert_sliding_window_ebb_layer(
-                    sim_l_fname, 
-                    surf_set,
-                    patch_size=patch_size, 
-                    n_temp_modes=n_temp_modes_ebb_slidwd,
-                    n_spatial_modes=n_spatial_modes, 
-                    win_size=win_size,
-                    win_overlap=True,
-                    foi=None, 
-                    hann_windowing=True, #hardcoded: optimal for sliding window 
-                    viz=False,
-                    spm_instance=spm
-                )
-                
+                    # ensures you get enough samples to optimize the ebb hyperparameters 
+                    if win_size <= 15:
+                        n_temp_modes_ebb_slidwd = 1
+                        n_temp_modes_fe_slidwd = 1
+                    else:
+                        n_temp_modes_ebb_slidwd = n_temp_modes_ebb
+                        n_temp_modes_fe_slidwd = 4 #harcoded optimal for fe comparison
 
-                # retreive ebb_layer time series, only for specified vertex
-                ts_slidwd_ebb_layer, _, _ = load_source_time_series(
-                    sim_l_fname, 
-                    vertices=all_layers_vertices
-                )
+                    # inversion with sliding window ebb_layer (METHOD 1-bis) # if epoch too big import from helper
+                    [_, _] = invert_sliding_window_ebb_layer(
+                        sim_l_fname, 
+                        surf_set,
+                        patch_size=patch_size, 
+                        n_temp_modes=n_temp_modes_ebb_slidwd,
+                        n_spatial_modes=n_spatial_modes, 
+                        win_size=win_size,
+                        win_overlap=True,
+                        foi=None, 
+                        hann_windowing=True, #hardcoded: optimal for sliding window 
+                        viz=False,
+                        spm_instance=spm
+                    )
+                    
 
-                # get the ts within full time window (for comparison with free energy)
-                sim_vx_res["ts_slidwd_ebb_layer"][sim_idx, :, :] = ts_slidwd_ebb_layer
+                    # retreive ebb_layer time series, only for specified vertex
+                    ts_slidwd_ebb_layer, _, _ = load_source_time_series(
+                        sim_l_fname, 
+                        vertices=all_layers_vertices
+                    )
 
-                # model comparison (METHOD 2 - free energy model comparison, msp inversion at specific vertex)
-                [fs_slidwd, _] = sliding_window_model_comparison(
-                    [sim_vertex],
-                    coreg_fid_coords, 
-                    sim_l_fname, 
-                    surf_set,
-                    viz=False, 
-                    spm_instance=spm,
-                    invert_kwargs={
-                        'patch_size': patch_size,
-                        'n_temp_modes': n_temp_modes_fe_slidwd, #hardcoded: optimal for fe comparison
-                        'win_size': win_size, 
-                        'win_overlap': True, #hardcoded: optimal for fe comparison
-                    }
-                )
+                    # get the ts within full time window (for comparison with free energy)
+                    sim_vx_res["ts_slidwd_ebb_layer"][sim_idx, :, :] = ts_slidwd_ebb_layer
 
-                # saves the free energy
-                sim_vx_res["fs_slidwd"][sim_idx, :, :] = fs_slidwd
+                    # model comparison (METHOD 2 - free energy model comparison, msp inversion at specific vertex)
+                    [fs_slidwd, _] = sliding_window_model_comparison(
+                        [sim_vertex],
+                        coreg_fid_coords, 
+                        sim_l_fname, 
+                        surf_set,
+                        viz=False, 
+                        spm_instance=spm,
+                        invert_kwargs={
+                            'patch_size': patch_size,
+                            'n_temp_modes': n_temp_modes_fe_slidwd, #hardcoded: optimal for fe comparison
+                            'win_size': win_size, 
+                            'win_overlap': True, #hardcoded: optimal for fe comparison
+                        }
+                    )
+
+                    # saves the free energy
+                    sim_vx_res["fs_slidwd"][sim_idx, :, :] = fs_slidwd
+
+                    # save results to pickle
+                    output_file = os.path.join(out_path, f"{output_sim_fname}_win_size{win_size}.pickle")
+                    with open(output_file, "wb") as fp:
+                        pickle.dump(sim_vx_res, fp)
 
                 # Cleanup layer sim files
                 for ext in ['mat', 'dat']:
@@ -357,10 +382,7 @@ def run(
                         if os.path.exists(fpath):
                             os.remove(fpath)
 
-        # Save full results to pickle
-        with open(output_file, "wb") as fp:
-            pickle.dump(sim_vx_res, fp)
-
+        # remove tmp dir
         shutil.rmtree(tmp_dir)
     
     except Exception:
@@ -405,26 +427,27 @@ if __name__ == '__main__':
     vertices = parameters["vertices"]
 
     # Modulated params
+    signal_width = [10, 25] # 10 ms and 25 ms
     temp_dist = [10, 25, 50] # in ms, added to the second source in the pair
-    win_size = [10, 25, 50]
+    win_sizes = [10, 25, 50]
 
     # Build all (vertex, snr) combinations
     all_verts = []
+    all_signal_width = []
     all_temp_dist = []
-    all_win_sizes = []
     for vert in vertices:
-        for tmp_dist_i in temp_dist:
-            for win_s in win_size:
+        for signal_width_i in signal_width:
+            for tmp_dist_i in temp_dist:
                 all_verts.append(vert)
+                all_signal_width.append(signal_width_i)
                 all_temp_dist.append(tmp_dist_i)
-                all_win_sizes.append(win_s)
     
     print(f'Total number of unique simulations: {len(all_temp_dist)}')
 
     vertex_sim_idx = all_verts[sim_idx]
     tmp_dist_sim_idx = all_temp_dist[sim_idx]
-    win_size_sim_idx = all_win_sizes[sim_idx]
-    output_sim_fname = f"vx{vertex_sim_idx}_2_consec_sources_tmp_dist{tmp_dist_sim_idx}win_size{win_size_sim_idx}"
+    signal_width_sim_idx = all_signal_width[sim_idx]
+    output_sim_fname = f"vx{vertex_sim_idx}_2_consec_sources_width{signal_width_sim_idx}_tmp_dist{tmp_dist_sim_idx}"
 
     run(json_file,
         out_folder,
@@ -438,7 +461,8 @@ if __name__ == '__main__':
         snr_level,
         tmp_dist_sim_idx,
         dipole_moment,
-        win_size_sim_idx,
+        win_sizes,
+        signal_width_sim_idx, 
         patch_size,
         sim_patch_size,
         n_temp_modes_ebb,
