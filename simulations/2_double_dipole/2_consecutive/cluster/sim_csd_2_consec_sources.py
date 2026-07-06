@@ -202,8 +202,8 @@ def run(
             "thickness": thickness,
             "time": time,
             "ts_ebb_layer": np.zeros((len(sim_vertices), n_layers, len(time))),
-            "ts_slidwd_ebb_layer": np.zeros((len(sim_vertices), n_layers, len(time))),
-            "fs_slidwd": np.zeros((len(sim_vertices), n_layers, len(time))),
+            "ts_slidwd_ebb_layer": {},
+            "fs_slidwd": {},
         }
 
         with spm_context() as spm:
@@ -304,10 +304,10 @@ def run(
                 sim_vx_res["ts_ebb_layer"][sim_idx, :, :] = ts_ebb_layer
 
                 for win_size in win_sizes:
+                    if win_size not in sim_vx_res["ts_slidwd_ebb_layer"]:
+                        sim_vx_res["ts_slidwd_ebb_layer"][win_size] = np.zeros((len(sim_vertices), n_layers, len(time)))
+                        sim_vx_res["fs_slidwd"][win_size] = np.zeros((len(sim_vertices), n_layers, len(time)))
                     
-                    # empty the sliding fs and time window arrays
-                    sim_vx_res["ts_slidwd_ebb_layer"] = np.zeros((len(sim_vertices), n_layers, len(time)))
-                    sim_vx_res["fs_slidwd"] = np.zeros((len(sim_vertices), n_layers, len(time)))
                     # set the win size of reconstruction
                     sim_vx_res["win_size"] = win_size
 
@@ -318,6 +318,13 @@ def run(
                     else:
                         n_temp_modes_ebb_slidwd = n_temp_modes_ebb
                         n_temp_modes_fe_slidwd = 4 #harcoded optimal for fe comparison
+                    
+                    # coregister again to multilayer mesh
+                    coregister(
+                        coreg_fid_coords, 
+                        sim_l_fname, 
+                        surf_set, 
+                        spm_instance=spm)
 
                     # inversion with sliding window ebb_layer (METHOD 1-bis) # if epoch too big import from helper
                     [_, _] = invert_sliding_window_ebb_layer(
@@ -342,7 +349,7 @@ def run(
                     )
 
                     # get the ts within full time window (for comparison with free energy)
-                    sim_vx_res["ts_slidwd_ebb_layer"][sim_idx, :, :] = ts_slidwd_ebb_layer
+                    sim_vx_res["ts_slidwd_ebb_layer"][win_size][sim_idx, :, :] = ts_slidwd_ebb_layer
 
                     # model comparison (METHOD 2 - free energy model comparison, msp inversion at specific vertex)
                     [fs_slidwd, _] = sliding_window_model_comparison(
@@ -361,13 +368,8 @@ def run(
                     )
 
                     # saves the free energy
-                    sim_vx_res["fs_slidwd"][sim_idx, :, :] = fs_slidwd
-
-                    # save results to pickle
-                    output_file = os.path.join(out_path, f"{output_sim_fname}_win_size{win_size}.pickle")
-                    with open(output_file, "wb") as fp:
-                        pickle.dump(sim_vx_res, fp)
-
+                    sim_vx_res["fs_slidwd"][win_size][sim_idx, :, :] = fs_slidwd
+                
                 # Cleanup layer sim files
                 for ext in ['mat', 'dat']:
                     for f_prefix in [prefix, f'm{prefix}']:
@@ -377,6 +379,17 @@ def run(
                         )
                         if os.path.exists(fpath):
                             os.remove(fpath)
+            
+            for win_size in win_sizes:
+                win_vx_res = sim_vx_res.copy()  # shallow copy
+                win_vx_res["win_size"] = win_size
+                win_vx_res["ts_slidwd_ebb_layer"] = sim_vx_res["ts_slidwd_ebb_layer"][win_size]
+                win_vx_res["fs_slidwd"] = sim_vx_res["fs_slidwd"][win_size]
+                
+                # save results to pickle
+                output_file = os.path.join(out_path, f"{output_sim_fname}_win_size{win_size}.pickle")
+                with open(output_file, "wb") as fp:
+                    pickle.dump(win_vx_res, fp)
 
         # remove tmp dir
         shutil.rmtree(tmp_dir)
